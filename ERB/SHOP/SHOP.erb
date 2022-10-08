@@ -1,0 +1,203 @@
+﻿@SHOW_SHOP
+DRAWLINE
+PRINTFORML 별명 [%CALLNAME:MASTER%]의 상태
+PRINTFORML 이름 테스트 [%NAME:MASTER%]
+PRINTFORML 이명 테스트 [%NICKNAME:MASTER%]
+PRINTL
+PRINTFORMLC 체력 [{BASE:MASTER:체력} / {MAXBASE:MASTER:체력}]
+PRINTFORML
+PRINTFORMLC 기력 [{BASE:MASTER:기력} / {MAXBASE:MASTER:기력}]
+PRINTL
+PRINTL 무엇을 할까...
+
+
+@EVENTSHOP
+
+DRAWLINE
+SAVEDATA 99, SAVEINFO_EX()
+CALL SHOW_SHOP
+
+DRAWLINE
+PRINTL [100] 대화한다
+PRINTL [101] 휴식한다
+PRINTL [102] 놀러간다
+PRINTL [103] 학생부확인
+PRINTL
+
+PRINTL [104] 엘리그마개화
+PRINTL [200] 아이템구입
+PRINTL [201] 아이템확인/매각
+PRINTL [202] 샬레에초청한다
+
+PRINTL
+DRAWLINE
+PRINTLC [300] - SAVE
+PRINTLC [301] - LOAD
+PRINTLC [302] - 설정
+PRINTL
+DRAWLINE
+
+INPUT
+SELECTCASE RESULT
+    CASE 103
+        CALL SHOW_CHARADATA_MENU
+    CASE 300
+        CALL SAVEGAME_EX
+    CASE 301
+        CALL LOADGAME_EX
+	    RESTART
+ENDSELECT
+
+
+@USERSHOP
+;SHOW_SHOP에서 받은 값이 0~99면 구입하고
+;100이상의 값을 받게되면 USERSHOP을 호출한다.
+    
+
+@SHOW_CHARADATA_MENU
+;표시되는 캐릭터를 추출(LOCAL:2로 인원수)
+VARSET LOCAL, 0
+;CHARADATA_LIST를 위해서 대피
+REPEAT CHARANUM
+    MARK:COUNT:98 = 0
+    ;주인은 제외
+    SIF COUNT == MASTER
+        CONTINUE
+    ;실종 중이라거나 이 자리에 없으면 제외
+    SIF CFLAG:COUNT:4 == 1
+        CONTINUE
+    LOCAL:2 += 1
+    MARK:COUNT:98 = 1
+REND
+LOCAL:1 = (LOCAL:2 - 1) / 20
+MARK:MASTER:98 = 1
+
+$PRINT_LIST
+DRAWLINE
+PRINTFORML 스테이터스를 표시하고 싶은 캐릭터를 선택해주세요　＜page.{LOCAL+1}＞
+DRAWLINE
+PRINTFORML 　[0] %CALLNAME:MASTER%(당신)
+DRAWLINE
+
+DRAWLINE
+PRINTFORMLC \@(LOCAL <= 0) ? %" " * 16% # [1001] 앞페이지로\@
+PRINTLC [1000] 돌아간다
+PRINTFORMLC \@(LOCAL >= LOCAL:2 / 20) ? %" " * 16% # [1009] 다음페이지로\@
+PRINTL 
+$INPUT_LOOP_1
+INPUT
+IF RESULT == 1000
+    RETURN 0
+ELSEIF RESULT == 1001 && LOCAL > 0
+    LOCAL -= 1
+    GOTO PRINT_LIST
+ELSEIF RESULT == 1009 && LOCAL < LOCAL:1
+    LOCAL += 1
+    GOTO PRINT_LIST
+ELSEIF RESULT < 0 || RESULT >= CHARANUM || MARK:RESULT:98 == 0
+    GOTO INPUT_LOOP_1
+ENDIF
+CALL SHOW_CHARADATA_PAGE, RESULT
+RESTART
+
+
+;-------------------------------------------------
+;스테이터스 표시(각 캐릭터별)
+;-------------------------------------------------
+@SHOW_CHARADATA_PAGE, ARG
+;페이지 판별은 LOCAL로
+LOCAL = 1
+
+$PRINT_PAGE
+CALL NEW_DRAWLINE
+PRINTFORM %CALLNAME:ARG%\@(NO:ARG >= 150 && NO:ARG < 200 && CALLNAME:ARG != NAME:ARG) ? (%ITEMNAME:(100+NO:ARG)%) # %" "*4%\@ 종족：%STR:2%
+SIF TALENT:MASTER:998
+    PRINTFORM 　캐릭터번호:{NO:ARG, 3}  
+    
+IF ARG != MASTER && FLAG:12 & 4
+    CALL PRINT_SLAVE_STATUS, ARG
+ELSEIF ARG == MASTER && FLAG:12 & 4
+    CALL PRINT_MASTER_STATUS, ARG
+ENDIF
+CALLFORM SHOW_INFO_PAGE_{LOCAL}, ARG
+PRINTFORMLC \@(LOCAL == 1) ? %" " * 16% # [1001] 앞 페이지로\@
+PRINTLC   [1000] 돌아간다
+PRINTFORMLC \@(LOCAL == 5) ? %" " * 16% # [1009] 다음 페이지로\@
+PRINTL 
+;등록번호가 현재  표시되어 있는 전후의 캐릭터이고 『이 자리에 없다 플래그』가 켜져 있을 경우, 그 캐릭터로 전환하는 버튼을 표시
+PRINTFORMLC \@(ARG > 0 && CFLAG:(ARG-1):4 == 0) ? [1011] 10 페이지 앞으로 # %" " * 16%\@
+PRINTFORMLC %" " * 18%
+PRINTFORMLC \@(ARG < CHARANUM - 1 && CFLAG:(ARG+1):4 == 0) ? [1019] 10 페이지 뒤로 # %" " * 16%\@
+PRINTL 
+$INPUT_LOOP_2
+INPUT
+IF RESULT == 1000
+    RETURN 0
+ELSEIF RESULT == 1001 && LOCAL > 1
+    LOCAL -= 1
+ELSEIF RESULT == 1009 && LOCAL < 5
+    LOCAL += 1
+ELSEIF RESULT == 1011 && ARG > 0 && (CFLAG:(ARG-1):4 == 0)
+    ARG -= 1
+ELSEIF RESULT == 1019 && ARG < CHARANUM - 1 && (CFLAG:(ARG+1):4 == 0)
+    ARG += 1
+ELSE
+    GOTO INPUT_LOOP_2
+ENDIF
+GOTO PRINT_PAGE
+
+;-------------------------------------------------
+;단락선표시 보조 처리
+;-------------------------------------------------
+@NEW_DRAWLINE
+IF FLAG:12 & 2
+    CUSTOMDRAWLINE ·
+ELSE
+    DRAWLINE
+ENDIF
+
+@SHOW_INFO_PAGE_1, ARG
+;弐型表示
+IF FLAG:12 & 2
+    ;素質
+    SIF FLAG:3 < 4 || ARG == MASTER || TALENT:MASTER:198 || TALENT:MASTER:998
+        CALL NEW_PRINT_TALENT, ARG
+    ;刻印
+ENDIF
+
+;PRINT_TALENT （素質）との入れ替え
+@NEW_PRINT_TALENT, ARG
+PRINTL □ 소질
+LOCAL = 0
+;リピート回数-1 の番号までの素質が表示される
+;リピート回数をあらかじめ大きめに設定（最大1000）しておくと、
+;素質の最大番号が増えたときに書き換える手間が減るが、
+;増やしすぎると処理速度に影響するので要注意
+REPEAT 270
+    IF TALENT:ARG:COUNT
+        CALL SHOW_INFO_EACH_TALENT, ARG
+        SIF (++LOCAL % 6) == 0
+            PRINTL 
+    ENDIF
+REND
+REPEAT 10
+    IF TALENT:ARG:(830+COUNT)
+        PRINTFORM [%TALENTNAME:(830+COUNT)%] 
+        SIF (++LOCAL % 6) == 0
+            PRINTL 
+    ENDIF
+REND
+IF TALENT:ARG:998
+    PRINTFORM [%TALENTNAME:998%] 
+    SIF (++LOCAL % 6) == 0
+        PRINTL 
+ENDIF
+IF CFLAG:ARG:0
+    PRINTFORM [\@(EQUIP:ARG:0 == 1) ? ｅｘ # ＥＸ\@] 
+    SIF (++LOCAL % 6) == 0
+        PRINTL 
+ENDIF
+
+SIF LOCAL % 6 != 0
+    PRINTL 
+CUSTOMDRAWLINE ･
